@@ -6,10 +6,10 @@ P0: Pick the paper
 Hair cortisol levels, psychological stress, and psychopathological symptoms as predictors of postpartum depression
 
 P1: Data Quality Review 
-Each one of us will analyze the following topics (from bad quality csv) segments of the data: 
-Alfonso - (b0:16]
-Nate - (16:32]
-Wei-Chun - (32:46)
+Each one of us will analyze the following topics (from bad quality csv) segments of the data:   
+Alfonso - (b0:16]  
+Nate - (16:32]  
+Wei-Chun - (32:46)  
 
 
 [Data] (https://figshare.com/articles/PPD_hairCortisol_PlosOne_sav/5255848/1) Citation
