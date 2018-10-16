@@ -1,0 +1,6 @@
+"0","knitr::opts_chunk$set(echo = TRUE)"
+"0","library(fivethirtyeight) # new to you!"
+"0","library(moderndive)"
+"0","library(skimr)"
+"0","library(tidyverse)"
+"0","library(GGally) # new to you!"

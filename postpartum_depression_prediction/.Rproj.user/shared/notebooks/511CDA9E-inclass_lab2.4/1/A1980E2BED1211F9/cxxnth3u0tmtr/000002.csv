@@ -1,0 +1,1 @@
+"0","less_hate2 %>% select(-state) %>% ggpairs(aes(color=cat_trump))"

@@ -1,0 +1,33 @@
+---
+title: "Nate-DataQualityReview"
+author: "Nathaniel Evans"
+date: "October 16, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(haven)
+library(tidyr)
+library(dplyr)
+```
+
+
+```{r}
+path = "./../data/PPD_hairCortisol_PlosOne_.sav"
+
+dataset= read_sav(path)
+summary(dataset)
+
+count(dataset)
+
+ncol(dataset)
+
+glimpse(dataset)
+```
+
+```{r}
+73/3
+``
+

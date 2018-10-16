@@ -1,0 +1,6 @@
+"0","# for large dataset (n>15)"
+"0","# outliers are > 2*mean"
+"0","# for small dataset "
+"0","# outliers are > 3*mean"
+"0","hate_diag <- hate_diag %>% mutate(stud_resid_diff=abs(.ext.resid-.std.resid))"
+"0","hate_diag %>% ggplot(aes(x=stud_resid_diff))+ geom_histogram(bins=50)"

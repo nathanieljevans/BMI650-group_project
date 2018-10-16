@@ -1,0 +1,1 @@
+"0","less_hate %>% filter(avg_hatecrimes_per_100k_fbi > 9) # DC is the outlier in our histogram"

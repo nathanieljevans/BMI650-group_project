@@ -1,0 +1,1 @@
+"0","less_hate %>% ggplot(aes(x=share_pop_hs)) + geom_histogram()"

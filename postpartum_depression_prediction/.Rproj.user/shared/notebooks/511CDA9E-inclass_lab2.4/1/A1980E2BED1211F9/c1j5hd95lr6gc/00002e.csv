@@ -1,0 +1,1 @@
+"0","hate_diag %>% ggplot(aes(x=.std.resid, y=.ext.resid)) + geom_point() + geom_smooth(method='lm')"

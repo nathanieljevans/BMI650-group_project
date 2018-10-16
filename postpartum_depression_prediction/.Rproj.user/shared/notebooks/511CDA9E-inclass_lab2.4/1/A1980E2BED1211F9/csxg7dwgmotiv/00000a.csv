@@ -1,0 +1,1 @@
+"0","less_hate %>% filter(gini_index > .48) # Conneticut, DC and NY all have high gini indexs (outliers)"

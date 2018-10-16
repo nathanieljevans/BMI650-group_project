@@ -1,0 +1,8 @@
+"0","less_hate2 <- less_hate %>% "
+"0","  mutate("
+"0","    cat_trump = case_when("
+"0","      share_vote_trump < .5 ~ ""less than half"", "
+"0","      TRUE ~ ""more than half"""
+"0","      )) %>% "
+"0","  mutate(cat_trump = as.factor(cat_trump)) %>% "
+"0","  select(-share_vote_trump)"

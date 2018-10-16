@@ -1,0 +1,6 @@
+"0","hate_diag <- hate_diag %>% "
+"0","  mutate(.ext.resid = rstudent(hate_mod)) # add "
+"0","hate_diag %>% "
+"0","  select(state, .std.resid, .ext.resid) %>% "
+"0","  arrange(desc(.ext.resid)) %>% "
+"0","  slice(1:5)"

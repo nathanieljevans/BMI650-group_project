@@ -1,0 +1,17 @@
+"0","less_hate <- hate_crimes %>% select(avg_hatecrimes_per_100k_fbi, share_pop_hs, gini_index, share_vote_trump, state) # just variables were worried about"
+"0","glimpse(less_hate)"
+"1","Observations: 51
+"
+"1","Variables: 5
+"
+"1","$ avg_hatecrimes_per_100k_fbi <dbl> 1.8064105, 1.6567001, 3.4139280, 0.8692089, 2.3979859, 2.8046888, 3.772701...
+"
+"1","$ share_pop_hs                <dbl> 0.821, 0.914, 0.842, 0.824, 0.806, 0.893, 0.886, 0.874, 0.871, 0.853, 0.83...
+"
+"1","$ gini_index                  <dbl> 0.472, 0.422, 0.455, 0.458, 0.471, 0.457, 0.486, 0.440, 0.532, 0.474, 0.46...
+"
+"1","$ share_vote_trump            <dbl> 0.63, 0.53, 0.50, 0.60, 0.33, 0.44, 0.41, 0.42, 0.04, 0.49, 0.51, 0.30, 0....
+"
+"1","$ state                       <chr> ""Alabama"", ""Alaska"", ""Arizona"", ""Arkansas"", ""California"", ""Colorado"", ""Con...
+"
+"0","less_hate %>% ggplot(aes(x=avg_hatecrimes_per_100k_fbi)) + geom_histogram()"

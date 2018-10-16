@@ -1,0 +1,7 @@
+"0","my_mod <- lm(data = less_hate2, formula = avg_hatecrimes_per_100k_fbi ~ cat_trump + share_pop_hs)"
+"0","my_mod_int <- lm(data = less_hate2, formula = avg_hatecrimes_per_100k_fbi ~ cat_trump * share_pop_hs)"
+"0","single_mod_hs <- lm(data = less_hate2, formula = avg_hatecrimes_per_100k_fbi ~ share_pop_hs)"
+"0","single_mod_trump <- lm(data = less_hate2, formula = avg_hatecrimes_per_100k_fbi ~ cat_trump)"
+"0","reg_tab <- get_regression_points(my_mod)"
+"0","reg_tab_int <- get_regression_points(my_mod_int)"
+"0","reg_tab_int"

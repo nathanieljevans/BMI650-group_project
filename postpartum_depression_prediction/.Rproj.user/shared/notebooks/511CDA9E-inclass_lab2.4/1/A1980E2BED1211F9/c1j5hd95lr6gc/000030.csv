@@ -1,0 +1,2 @@
+"0","# studentized (named after someone) means divide by standard error "
+"0","hate_diag %>% ggplot(aes(x=.hat, y=.ext.resid)) + geom_point()"

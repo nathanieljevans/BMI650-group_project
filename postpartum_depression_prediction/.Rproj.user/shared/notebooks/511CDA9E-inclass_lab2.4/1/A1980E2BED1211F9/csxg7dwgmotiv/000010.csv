@@ -1,0 +1,1 @@
+"0","less_hate %>% filter(share_vote_trump < 0.2) # DC is the outlier - almost everyone did NOT vote for trump"

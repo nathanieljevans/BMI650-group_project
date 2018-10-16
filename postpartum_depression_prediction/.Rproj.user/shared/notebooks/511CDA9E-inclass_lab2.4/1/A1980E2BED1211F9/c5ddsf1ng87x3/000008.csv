@@ -1,0 +1,1 @@
+"0","reg_tab_int %>% ggplot(aes(x=share_pop_hs, y=avg_hatecrimes_per_100k_fbi, color=cat_trump)) + geom_point() + geom_point(data=reg_tab_int, aes( x=share_pop_hs, y=avg_hatecrimes_per_100k_fbi_hat, color=cat_trump), shape=24)"
