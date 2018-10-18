@@ -1,0 +1,16 @@
+Sample is biased		the sample is slightly biased by disgn because it only is on latin females in one area of a specific demographic 
+Data have been manually edited	n/a
+Inflation skews the data	n/a
+Natural/seasonal variation skews the data	this may be true but the hair quality could be a way around this issue because it lasts for long however this test does take place over the winter motths where SADS could be a factor further investigation into this aspect is required
+Timeframe has been manipulated			n/a 
+Frame of reference has been manipulated		this is true with especaly with respect to the Edinburgh Postnatal Depression Scale this has been highly manipulated 
+Author is untrustworthy				N/A
+Collection process is opaque			N/A
+Data assert unrealistic precision		N/A
+There are inexplicable outliers			N/A
+An index masks underlying variation		N/A
+Results have been p-hacked			N/A
+Benford's Law fails				N/A
+Too good to be true				N/A
+Data are aggregated to the wrong categories or geographies		N/A	
+Data are in scanned documents			n/A
