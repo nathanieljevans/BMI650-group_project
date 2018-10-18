@@ -1,0 +1,170 @@
+---
+title: "Wei-data_quality_review"
+author: "Wei-Chun Lin"
+date: "10/17/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyr)
+library(dplyr)
+library(skimr)
+library(foreign)
+# Attaching benford analysis tool
+library(benford.analysis)
+library(moments)
+library(ggplot2)
+```
+
+```{r}
+finalProject <- read.spss("~/Desktop/R-bootcamp/Math630/data/PPD.sav", to.data.frame=TRUE)
+```
+#### 31. Data have been manually edited <br />
+
+I do not find any suspicious sign.
+
+#### 32, 33 Inflation skews the data or Natural/seasonal variation skews the data <br />
+
+Using "skim" function to get all histograms and figure out several skewness data.
+```{r}
+# Using skim, we can get histograms of all variables. 
+skim(finalProject)
+```
+
+Obvious skewness histograms: <br />
+ANSIEDADFOBICA1 
+ANSIEDADFOBICA3
+Cortisol1
+Cortisol2
+Cortisol2
+DEPRESIÓN2
+EPDS
+IDEACIÓNPARANOIDE3
+OBSESIONESYCOMPULSIONES3
+PSICOTICISMO1
+PSICOTICISMO3
+
+```{r}
+# Remove empty row
+finalProject <- finalProject[-c(45:73), ]
+
+ggplot(finalProject, aes(x = Cortisol1))+
+  geom_density()
+
+skewness(finalProject$Cortisol1)
+
+ggplot(finalProject, aes(x = Cortisol2))+
+  geom_density()
+
+skewness(finalProject$Cortisol2)
+
+ggplot(finalProject, aes(x = Cortisol3))+
+  geom_density()
+
+skewness(finalProject$Cortisol3)
+
+ggplot(finalProject, aes(x = ANSIEDADFOBICA1))+
+  geom_density()
+
+skewness(finalProject$ANSIEDADFOBICA1)
+
+ggplot(finalProject, aes(x = ANSIEDADFOBICA3))+
+  geom_density()
+
+skewness(finalProject$ANSIEDADFOBICA3)
+
+ggplot(finalProject, aes(x = DEPRESIÓN2))+
+  geom_density()
+
+skewness(finalProject$DEPRESIÓN2)
+
+ggplot(finalProject, aes(x = EPDS))+
+  geom_density()
+
+skewness(finalProject$EPDS)
+
+ggplot(finalProject, aes(x = IDEACIÓNPARANOIDE3))+
+  geom_density()
+
+skewness(finalProject$IDEACIÓNPARANOIDE3)
+
+ggplot(finalProject, aes(x = OBSESIONESYCOMPULSIONES3))+
+  geom_density()
+
+skewness(finalProject$OBSESIONESYCOMPULSIONES3)
+
+ggplot(finalProject, aes(x = PSICOTICISMO1))+
+  geom_density()
+
+skewness(finalProject$PSICOTICISMO1)
+
+ggplot(finalProject, aes(x = PSICOTICISMO3))+
+  geom_density()
+
+skewness(finalProject$PSICOTICISMO3)
+```
+<br />
+
+#### 34. Timeframe has been manipulated <br />
+No sign of this kind of manipulation
+
+#### 35. Frame of reference has been manipulated <br />
+No sign of this kind of manipulation
+
+#### 36. Author is untrustworthy <br />
+No information to make the judgement.
+
+#### 37. Collection process is opaque <br />
+Data collection process is clear.
+
+#### 38. Data assert unrealistic precision <br/>
+The R-squart of prediction model is reasonable.
+
+#### 39. There are inexplicable outliers <br/>
+No
+
+#### 40. An index masks underlying variation <br/>
+Not found
+
+#### 41. Results have been p-hacked <br/>
+I haven't find p-hacked situation.
+
+#### 42. Benford's Law fails
+
+If the data follows Benford's Law, the numbers should be close to: <br />
+Statistic	Value <br />
+Mean	0.5 <br />
+Variance	1/12 (0.08333…) <br />
+Ex. Kurtosis	-1.2 <br />
+Skewness	0 <br />
+
+Here are several variables fails to Benford's law
+
+```{r}
+
+#Test skewness variables with benford function
+benford(finalProject$ANSIEDADFOBICA1)
+
+benford(finalProject$ANSIEDADFOBICA3)
+
+benford(finalProject$IDEACIÓNPARANOIDE3)
+
+benford(finalProject$PSICOTICISMO1)
+
+```
+
+#### 43. Too good to be true <br />
+The result is reasonable.
+
+#### 44. Data are aggregated to the wrong categories or geographies <br />
+All variable names were stored as Spanish, we might need to translate to English.
+
+#### 45. Data are in scanned documents <br />
+No 
+
+
+
