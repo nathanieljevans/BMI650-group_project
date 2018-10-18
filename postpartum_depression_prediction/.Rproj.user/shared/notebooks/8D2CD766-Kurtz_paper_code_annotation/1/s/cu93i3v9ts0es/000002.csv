@@ -1,0 +1,3 @@
+"0","Flags_1_probit <- Flags_1_v1 %>% mutate(coeffs = purrr::map(data,probit_fit))  # map() returns a list "
+"2","Error in eval(lhs, parent, parent) : object 'Flags_1_v1' not found
+"

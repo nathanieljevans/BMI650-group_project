@@ -1,0 +1,28 @@
+"0","# lets look at just one drug - Allistertib "
+"0","my_data <- All_nested_v3 %>% filter(Drug== ""Alisertib - Crizotinib"") %>% filter(Specimen_ID==""15-00661"")"
+"0","glimpse(my_data)"
+"1","Observations: 7
+"
+"1","Variables: 10
+"
+"1","$ Specimen_ID  <chr> ""15-00661"", ""15-00661"", ""15-00661"", ""15-00661"", ""15-00661"", ""15-00661"", ""15-00661""
+"
+"1","$ Drug         <chr> ""Alisertib - Crizotinib"", ""Alisertib - Crizotinib"", ""Alisertib - Crizotinib"", ""Alisertib...
+"
+"1","$ Dose         <dbl> 1, 2, 3, 4, 5, 6, 7
+"
+"1","$ data         <list> [<[38;5;246m# A tibble: 1 x 8[39m,   Patient_ID Inhibitor_Panel Specific_diag    Repl...
+"
+"1","$ num_platings <dbl> 1, 1, 1, 1, 1, 1, 1
+"
+"1","$ num_reps     <dbl> 1, 1, 1, 1, 1, 1, 1
+"
+"1","$ check_reps   <dbl> 1, 1, 1, 1, 1, 1, 1
+"
+"1","$ Ave_Result   <dbl> 70.99604, 60.10707, 54.88037, 39.20027, 22.21348, 37.89359, 27.87574
+"
+"1","$ Final_Result <dbl> 70.99604, 60.10707, 54.88037, 39.20027, 22.21348, 37.89359, 27.87574
+"
+"1","$ number       <dbl> 100, 100, 100, 100, 100, 100, 100
+"
+"0","my_data %>% distinct(Specimen_ID)"

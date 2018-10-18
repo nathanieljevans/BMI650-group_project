@@ -11,23 +11,97 @@ knitr::opts_chunk$set(echo = TRUE)
 library(haven)
 library(tidyr)
 library(dplyr)
+library(reticulate)
 ```
 
 
+## Nates Items 16:32
+Spreadsheet has 65536 rows  
+ -> 73 observations 
+Spreadsheet has 255 columns  
+ -> 71 Variables
+Spreadsheet has dates in 1900, 1904, 1969, or 1970  
+ -> No date variable 
+Text has been converted to numbers 
+ -> Not totally sure what that would look like, but no unexpected data types or unreasonable numbers per label
+Numbers have been stored as text  
+ -> all variables are of type <dbl> even binaries as 0/1 
+Text is garbled  
+ -> Garbled no, but it is in spanish which will present a problem. Attempted to write a python script to translate but google translate didn't know some words and being concatenated without spaces was an issue I think. 
+Line endings are garbled   
+ -> No but the .sav file was problematic when reading into excel, I had to read into R, save as csv, then open in excel. 
+Data are in a PDF  
+ -> Fortunately no, but see last question. 
+Data are too granular  
+ -> Data is mostly questionaires, so naturally granular, but not too much we can do about that. 
+Data were entered by humans  
+ -> This is true, but it was the only feasible way. Less problematic since given 1-5 scores on questionaires and then feature extraction from that to give mostly continuous value metrics. 
+Data are intermingled with formatting and annotations  
+Aggregations were computed on missing values  
+ -> No nested data, so nothing like that, I have no idea the data pipeline from questionaire data to provided metrics and there could be a host of issues there. No way to know without talking to the PI. 
+Sample is not random  
+ -> This is true, but the women selected for the study were selected to remove biased cortisol readings. So, they were chosen NOT at random but to provide the most normal population variation. 
+Margin-of-error is too large  
+ -> Dealing with psychology so I'd say yes, margin of error here is huge. Not easily controlled for. 
+Margin-of-error is unknown  
+ -> same as above. Margin of error on cortisol measurement is more knowable and worth looking into, the methods section didn't list the resolution or repeatibity. 
+Sample is biased  
+ -> This is difficult to say without going deep into the methods and data. I'd say that it's a little biased because more women ended up with postpartum (or without? it was skewed one way) than without. Smaller group sizes will provide less reliable statistical measurements/models. 
+Data have been manually edited  
+ -> Can't know from this dataset. Likely it has been curated but in this form, there is no metadata describing the transformation or origins of the data. 
+
+
+
+
+
 ```{r}
+
 path = "./../data/PPD_hairCortisol_PlosOne_.sav"
 
 dataset= read_sav(path)
-summary(dataset)
+#summary(dataset)
 
 count(dataset)
 
 ncol(dataset)
+nrow(dataset)
 
-glimpse(dataset)
+#glimpse(dataset)
+
+write.csv(dataset, file = "./../data/data_span.csv")
 ```
 
-```{r}
-73/3
-``
+```{python}
+import googletrans as gt 
+import pandas as pd
+import re
+
+data = pd.read_csv('./../data/data_span.csv',encoding = "ISO-8859-1")
+print(data.head())
+#print(data.columns.values)
+
+#data.drop(["Unnamed: 0"], inplace=True)
+
+
+trans = gt.Translator()
+
+print(trans.translate("hola mi amigo"))
+
+for old_col in data.columns.values:  
+  print(old_col)
+  #old_col2 = re.sub('[0-9:]','',old_col)
+  #old_col2 = re.sub('_', ' ', old_col)
+  #print(old_col2)
+  
+  new_col = trans.translate(old_col, src = 'spanish', dest='en').text
+  print(new_col)
+  print('-----------')
+  
+  data.rename(columns = {old_col:new_col}, inplace = True)
+  
+
+print(data.head())
+data.to_csv( "./../data/data_eng.csv" )
+
+```
 

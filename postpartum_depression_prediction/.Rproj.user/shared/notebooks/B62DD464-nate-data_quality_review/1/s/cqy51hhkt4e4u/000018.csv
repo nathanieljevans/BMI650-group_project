@@ -1,0 +1,4 @@
+"0","path = ""./../data/PPD_hairCortisol_PlosOne_.sav"""
+"0","dataset= read_sav(path)"
+"0","#summary(dataset)"
+"0","count(dataset)"

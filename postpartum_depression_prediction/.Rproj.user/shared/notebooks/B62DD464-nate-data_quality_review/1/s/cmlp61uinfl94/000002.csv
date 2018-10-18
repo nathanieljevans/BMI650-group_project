@@ -1,0 +1,265 @@
+"0","import googletrans as gt 
+import pandas as pd
+import re
+
+data = pd.read_csv('./../data/data_span.csv',encoding = ""ISO-8859-1"")
+print(data.head())
+#print(data.columns.values)
+
+#data.drop([""Unnamed: 0""], inplace=True)
+
+
+trans = gt.Translator()
+
+print(trans.translate(""hola mi amigo""))
+
+for old_col in data.columns.values:  
+  print(old_col)
+  #old_col2 = re.sub('[0-9:]','',old_col)
+  #old_col2 = re.sub('_', ' ', old_col)
+  #print(old_col2)
+  
+  new_col = trans.translate(old_col, src = 'spanish', dest='en').text
+  print(new_col)
+  print('-----------')
+  
+  data.rename(columns = {old_col:new_col}, inplace = True)
+  
+
+print(data.head())
+data.to_csv( ""./../data/data_eng.csv"" )
+"
+"1","   Unnamed: 0  Participante  Edad    ...      Cortisol1  Cortisol2  Cortisol3
+0           1           1.0  32.0    ...         282.40      246.0      295.6
+1           2           2.0  34.0    ...         362.30      156.1      539.8
+2           3           3.0  29.0    ...         124.70      171.5      318.1
+3           4           4.0  29.0    ...         113.49      167.1      192.2
+4           5           5.0  32.0    ...          72.50       81.9      227.7
+
+[5 rows x 72 columns]
+Translated(src=es, dest=en, text=Hello my friend, pronunciation=Hello my friend, extra_data=""{'translat..."")
+Unnamed: 0
+Unnamed: 0
+-----------
+Participante
+Competitor
+-----------
+Edad
+Age
+-----------
+Primerembarazo
+FirstPregnancy
+-----------
+Tipoembarazo
+Pregnancy type
+-----------
+Nivel_Estudios
+Level_Studies
+-----------
+SLaboral
+SLaboral
+-----------
+AspectoPelo
+Appearance
+-----------
+Deporte
+Sport
+-----------
+Profesion
+Profession
+-----------
+Que_estudio
+What study
+-----------
+Origen
+Origin
+-----------
+EPDS
+EPDS
+-----------
+depreposparto
+depreposparto
+-----------
+EstadoCivilDIcotomica
+StateCivilDIcotomica
+-----------
+EmploymentSituationDico
+EmploymentSituationDico
+-----------
+PetDicotomica
+PetDicotomica
+-----------
+NacionalidadDicotomica
+NationalityDicotomica
+-----------
+PregnancyMethodDico
+PregnancyMethodDico
+-----------
+PreviousMiscarriagesDico
+PreviousMiscarriagesDico
+-----------
+WantedPregnancyDico
+WantedPregnancyDico
+-----------
+Occupation123
+Occupation123
+-----------
+LNCORTISOL1
+LNCORTISOL1
+-----------
+LNCORTISOL2
+LNCORTISOL2
+-----------
+LNCORTISOL3
+LNCORTISOL3
+-----------
+SexoFetal
+SexFetal
+-----------
+PDQ1
+PDQ1
+-----------
+PDQ2
+PDQ2
+-----------
+PDQ3
+PDQ3
+-----------
+EEP1
+EEP1
+-----------
+EEP2
+EEP2
+-----------
+EEP3
+EEP3
+-----------
+SOMATIZACIONES1
+SOMATIZATIONS1
+-----------
+OBSESIONESYCOMPULSIONES1
+OBSESSIONS AND COMPULSIONS1
+-----------
+SENSITIVIDADINTERPERSONAL1
+SENSITIVIDADINTERPERSONAL1
+-----------
+DEPRESIÓN1
+DEPRESSION1
+-----------
+ANSIEDAD1
+ANXIETY1
+-----------
+HOSTILIDAD1
+HOSTILIDAD1
+-----------
+ANSIEDADFOBICA1
+ANSIEDADFOBICA1
+-----------
+IDEACIÓNPARANOIDE1
+IDEACIÓNPARANOIDE1
+-----------
+PSICOTICISMO1
+PSICOTICISMO1
+-----------
+IGS1
+IGS1
+-----------
+SP1
+SP1
+-----------
+PSDI1
+PSDI1
+-----------
+SOMATIZACIONES2
+SOMATIZATIONS2
+-----------
+OBSESIONESYCOMPULSIONES2
+OBSESSIONS AND COMPULSIONS2
+-----------
+SENSITIVIDADINTERPERSONAL2
+INSTRUMENT SENSITIVITY2
+-----------
+DEPRESIÓN2
+DEPRESSION2
+-----------
+ANSIEDAD2
+ANXIETY2
+-----------
+HOSTILIDAD2
+HOSTILITY2
+-----------
+ANSIEDADFOBICA2
+ANSIEDADFOBICA2
+-----------
+IDEACIÓNPARANOIDE2
+IDEACIÓNPARANOIDE2
+-----------
+PSICOTICISMO2
+PSICOTICISMO2
+-----------
+IGS2
+IGS2
+-----------
+SP2
+SP2
+-----------
+PSDI2
+PSDI2
+-----------
+SOMATIZACIONES3
+SOMATIZATIONS3
+-----------
+OBSESIONESYCOMPULSIONES3
+OBSESSIONS AND COMPULSIONS3
+-----------
+SENSITIVIDADINTERPERSONAL3
+INSTRUMENT SENSITIVITY3
+-----------
+DEPRESIÓN3
+DEPRESSION3
+-----------
+ANSIEDAD3
+ANXIETY3
+-----------
+HOSTILIDAD3
+HOSTILIDAD3
+-----------
+ANSIEDADFOBICA3
+ANSIEDADFOBICA3
+-----------
+IDEACIÓNPARANOIDE3
+IDEACIÓNPARANOIDE3
+-----------
+PSICOTICISMO3
+PSICOTICISMO3
+-----------
+IGS3
+IGS3
+-----------
+SP3
+SP3
+-----------
+PSDI3
+PSDI3
+-----------
+SexoFetalDico
+SexFetalDico
+-----------
+Cortisol1
+Cortisol1
+-----------
+Cortisol2
+Cortisol2
+-----------
+Cortisol3
+Cortisol3
+-----------
+   Unnamed: 0  Competitor   Age    ...      Cortisol1  Cortisol2  Cortisol3
+0           1         1.0  32.0    ...         282.40      246.0      295.6
+1           2         2.0  34.0    ...         362.30      156.1      539.8
+2           3         3.0  29.0    ...         124.70      171.5      318.1
+3           4         4.0  29.0    ...         113.49      167.1      192.2
+4           5         5.0  32.0    ...          72.50       81.9      227.7
+
+[5 rows x 72 columns]
+"

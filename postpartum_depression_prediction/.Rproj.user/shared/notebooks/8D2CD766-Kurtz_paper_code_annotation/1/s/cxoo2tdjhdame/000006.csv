@@ -1,0 +1,4 @@
+"0","Nest_sample_drug_8418_v2 <- Nest_sample_drug_8418_v1 %>% mutate(flag = purrr::map_dbl(data,flag_0_100))"
+"2","Error in mutate_impl(.data, dots) : 
+  Evaluation error: object 'flag_0_100' not found.
+"

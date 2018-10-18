@@ -1,0 +1,1087 @@
+---
+title: "Kurtz_paper_code_annotation"
+author: "Nathaniel Evans"
+date: "October 9, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## title: BSR ex vivo sensitivity data pipeline --------------------------------------------------------------------------------------
+
+# CONTEXT: 
+#   Leukemia Combo Drug TRAINING SET (n=122) data for Steve Kurtz PNAS paper (2017)
+#   --> Script includes: (a) Data import and processing --> Step 0.A thru Step 4
+#                        (b) Probit fitting (to each 7-dose profile) --> Step 5
+#                        (c) Effect Measure computations (for each sample/drug pairing) --> Step 6 (thru 13)
+#                        (d) Combination Ratio computations (for each sample/triad pairing) --> Step 14 - 18
+
+
+# INPUT: 2 choices of where to start 
+#   (1) Step 0.A: Start with 3 RAW Excel files that Steve exported from the Beat AML database
+#   (2) Step 1:   Start with a cleaned and replicate-averaged CSV of dose-response data (ie, one row per sample/drug/dose)
+
+# OUTPUT: 
+#           (i)  dataset (8418 rows b/c 69 drugs * 122 samples) with one row per sample/drug pairing with columns: 
+#                   sample_ID (numeric), Specimen_ID (char), Drug (drug name), Drug_ID (numeric), 
+#                   flag (=0 or =100 --> probit can't fit, =1 --> probit was fit), beta0, beta1, IC50, AUC 
+#
+#           (ii) dataset (5856 rows b/c 48 triads * 122 samples) with one row per sample/triad with columns: 
+#                   Specimen_ID (char), sample_ID (numeric), Drug (combo/triad name), Drug_ID (numeric), IC50_CR, AUC_CR
+
+
+# FUNCTIONS invoked in this step-by-step pipeline:
+#
+# --> *Important note*: functions defined at the end of this script *MUST BE EXECUTED FIRST* since they are not 
+#                       stored in separate .R scripts and "sourced"
+
+#   #1: determine if each 7-point series has "all 0" or "all 100" responses (create 'flag' column)
+#   #2: fit PROBIT curve to a 7-point dose series if the profile is "standard" (i.e., not "flagged") 
+#   #3: compute IC50 by incrementally moving across the dose range until predicted viability is <= 50%
+#   #4: compute AUC by integrating (finding area under the fitted probit curve) using the CDF of N(0,1)
+#   #5: extract each probit beta coeff from the list-column of glm()'s 'coefficients' output 
+#   #6a: compute Combination Ratios (IC50 CR and AUC CR) for all non-dasatinib combo's
+#   #6b: compute Combination Ratios for the dasatinib-venetoclax combo
+#   #7: return a vector of individual drug ID's for a given Combo/Triad ID
+
+
+# NOTES      NOTES       NOTES   
+# (1) "Check" and "recall" commands can be skipped since these were used for QC of both the data and the code
+# (2) "CREATE" commands create a vector or data.frame (either intermediate or final) that is needed in the pipeline
+
+
+# Additional comment: 9/19/17 --> Shannon McWeeney, PhD asked for this code in preparation for the Beat AML 
+#                                  public data release. She wants to apply probit fitting to the Beat AML data
+#                                  since the current IC50 and AUC values are based on a cubic polynomial fit
+
+<span style="color:red"> Nate Evans annotations will be in this color. Had to download and install 64 bit java to run xlsx </span> 
+
+```{r}
+## Working directory    -------------------------------------------------------------
+setwd('C:\\Users\\natha\\Documents\\McWeeney_Research\\Rotation Fall 2018 Nate Evans\\Rotation Fall 2018 Nate Evans')
+getwd()
+
+
+
+## Load Packages    ---------------------------------------------------------------------------------------
+library(tidyverse)  # includes readr, readxl, tidyr [nest()], dplyr, ggplot2, purrr [map_*()], tibble
+library(xlsx)       # write.xlsx()
+library(janitor)    # use for tabyl()
+
+#### 
+#### These two libraries are the only ones I haven't seen before 
+####
+library(sfsmisc)    # compute AUC by integration (need x vector and y=f(x) vector)
+library(Bolstad2)   # alternative: compute AUC by integration
+```
+
+####
+## Step 0.A: IMPORT RAW Beat AML data exported from database and given to BSR group  ------------------------------------
+
+```{r}
+# IMPORT *First Single Agent* Excel file  ****** 
+SA1_data_v1 <- readxl::read_excel(path='SingleAgents_8-1-15_to_11-18-15_RAW.xlsx')
+
+#dim(SA1_data_v1)  # 33952 by 16 
+#names(SA1_data_v1)
+
+# Create df: only keep 9 columns needed for probit fitting and rename these columns 
+SA1_data_v2 <- SA1_data_v1 %>% rename(Patient_ID = `Patient: Patient ID`, Specimen_ID = `Specimen: Lab ID`, 
+                                      Inhibitor_Panel = `Inhibitor Panel Run: Inhibitor Panel`,
+                                      Specific_diag = `Heme Malignancy: Specific Diagnosis`,
+                                      Drug = `Inhibitor Interpreted Result: Drug`,
+                                      Replicant = `Inhibitor Interpreted Result: Replicant`, 
+                                      Concentration = `Inhibitor Raw Result: Concentration`,
+                                      Normalized_Result = `Inhibitor Raw Result: Normalized Result`,
+                                      Plate_Average_Control = `Inhibitor Raw Result: Plate Average Control`) %>% 
+  select(Patient_ID, Specimen_ID, Inhibitor_Panel, Specific_diag, Drug, Replicant,
+         Concentration, Normalized_Result, Plate_Average_Control)
+
+#dim(SA1_data_v2)  # 33952 by 9 
+
+
+# IMPORT *Second Single Agent* Excel file  ********
+SA2_data_v1 <- readxl::read_excel(path='SingleAgents_11-18-15_to_2-22-16_RAW.xlsx')
+
+#dim(SA2_data_v1)  # 37825 by 16 
+
+
+# Create df: only keep 9 columns needed for probit fitting and rename these columns 
+SA2_data_v2 <- SA2_data_v1 %>% rename(Patient_ID = `Patient: Patient ID`, Specimen_ID = `Specimen: Lab ID`, 
+                                      Inhibitor_Panel = `Inhibitor Panel Run: Inhibitor Panel`,
+                                      Specific_diag = `Heme Malignancy: Specific Diagnosis`,
+                                      Drug = `Inhibitor Interpreted Result: Drug`,
+                                      Replicant = `Inhibitor Interpreted Result: Replicant`, 
+                                      Concentration = `Inhibitor Raw Result: Concentration`,
+                                      Normalized_Result = `Inhibitor Raw Result: Normalized Result`,
+                                      Plate_Average_Control = `Inhibitor Raw Result: Plate Average Control`) %>% 
+  select(Patient_ID, Specimen_ID, Inhibitor_Panel, Specific_diag, Drug, Replicant,
+         Concentration, Normalized_Result, Plate_Average_Control)
+
+#dim(SA2_data_v2)  # 37825 by 9 
+
+
+# IMPORT *Combo Drug* Excel file   ***********
+Combo_data_v1 <- readxl::read_excel(path='combi_v3_8-1-15_to_2-22-16_RAW.xlsx')
+
+#dim(Combo_data_v1)  # 54145 by 15 
+
+
+# Create df: only keep 9 columns needed for probit fitting and rename these columns 
+Combo_data_v2 <- Combo_data_v1 %>% rename(Patient_ID = `Patient: Patient ID`, Specimen_ID = `Specimen: Lab ID`, 
+                                          Inhibitor_Panel = `Inhibitor Panel Run: Inhibitor Panel`,
+                                          Specific_diag = `Heme Malignancy: Specific Diagnosis`,
+                                          Drug = `Inhibitor Interpreted Result: Drug`,
+                                          Replicant = `Inhibitor Interpreted Result: Replicant`, 
+                                          Concentration = `Inhibitor Raw Result: Concentration`,
+                                          Normalized_Result = `Inhibitor Raw Result: Normalized Result`,
+                                          Plate_Average_Control = `Inhibitor Raw Result: Plate Average Control`) %>% 
+  select(Patient_ID, Specimen_ID, Inhibitor_Panel, Specific_diag, Drug, Replicant,
+         Concentration, Normalized_Result, Plate_Average_Control)
+
+#dim(Combo_data_v2)  # 54145 by 9 
+```
+
+<span style="color:red"> So this segment is fairly straight forward, programaticall, understanding the 3 datasets and variables are another story. Little EDA to make sense of it... </span> 
+
+```{r}
+#dataset 1 - single agent 1 - with selective (9) variables
+print('----')
+summary(SA1_data_v2)
+#dataset 2 - single agent 2 - with selective (9) variables
+print('-----')
+summary(SA2_data_v2)
+#dataset 3 - combo agent - with selective variabls
+print('----')
+summary(Combo_data_v2)
+```
+
+
+####
+## Step 0.B: Stack the 3 datasets (SA1, SA2, Combo)  ---------------------------------------------------------------------------
+
+# Purpose: combine the Single Agent and Combo Drug sensitivity data 
+
+```{r}
+# Create df 
+All_data_v1 <- rbind(SA1_data_v2,SA2_data_v2,Combo_data_v2)
+
+#dim(All_data_v1)  # 125,922 by 9 
+
+
+
+####
+## Step 0.C: Clean dataset and correct errors  ------------------------------------------------------------------
+
+# *Cleaning steps*
+# (1) remove rows/observations corresponding to control wells or drugs other than the 69 being analyzed for Kurtz project 
+# (2) only include the 122 unique patient samples specified by Steve (15 samples had to be removed b/c of same patient) 
+# (3) correct 'Concentration' mistakes for combo drug = 'GS-1101 - Quizartinib' --> conc was entered 10-fold smaller than
+#         was actually plated for the first 6 doses [mistake recorded for all 122 included samples] 
+# (4) add a log10-transformed concentration variable [to be used as the independent var in the probit regression]
+# (5) add a 'dose' variable for each drug concentration (where Dasatinib concentrations are 10-fold smaller)
+
+
+# Import Excel file with ID's of the 122 Training Set samples chosen by collaborators 
+Included_sample_list <- readxl::read_excel(path='Training_Set_122_Sample_IDs.xlsx') %>% 
+  unlist
+
+#class(Included_sample_list)  # character
+#length(Included_sample_list) # 122
+
+
+# Create df - filter data based on 
+  # drug var matches Control or ABT -Ibrutinib 
+    # and 
+  # drop any rows that have an na val in the drug variable 
+    # and 
+  # select only rows that match the 122 approbed patient samples 
+## then identified mislabeled drug concentrations and increase by 10 fold. What does the ifelse command do? 
+      # ifelse(test, yes, no) - returns the value yes if test is evaluated true, no otherwise
+## add new var log10conc and Dose 
+    # Dose - discrete dosage representing levels of concentration
+All_data_v2 <- All_data_v1 %>% filter(!(Drug %in% c('Control','ABT-199 - Ibrutinib')) & !is.na(Drug) & 
+                                        Specimen_ID %in% Included_sample_list) %>% 
+                        mutate(Concentration = ifelse(Drug == 'GS-1101 - Quizartinib' & Concentration != 10,
+                                                      round(Concentration*10,digits=6), round(Concentration,digits=6)),
+                               log10conc = log10(Concentration),
+                               Dose = case_when(Concentration %in% c(0.001372,0.013717,0.013720) ~ 1,
+                                                Concentration %in% c(0.004115,0.041152,0.041150) ~ 2,
+                                                Concentration %in% c(0.012346,0.123457,0.123460) ~ 3,
+                                                Concentration %in% c(0.037037,0.370370) ~ 4,
+                                                Concentration %in% c(0.111111,1.111110) ~ 5,
+                                                Concentration %in% c(0.333333,3.333330) ~ 6,
+                                                Concentration %in% c(1.000000,10.000000) ~ 7)
+                              )
+
+# Checks
+#dim(All_data_v2)  # 65,100 (still includes replicates) by 11 
+
+# make sure there are 69 unique drug names  
+#All_data_v2 %>% select(Drug) %>% n_distinct  # 69 --> check passed 
+
+# make sure there are 122 unique sample names
+#All_data_v2 %>% select(Specimen_ID) %>% n_distinct  # 122 --> check passed 
+
+# make sure there are 7 dose points 
+#All_data_v2 %>% select(Dose) %>% n_distinct  # 7 --> check passed 
+
+```
+
+<span style="color:red"> So the data has, mostly, been cleaned and combined. The 122 approved patient samples were selected for and the conc issues were accounted for. </span> 
+
+```{r}
+glimpse(All_data_v2)
+```
+
+####
+## Step 0.D: Remove different-plate duplicates from analytic set  -----------------------------------------------------------
+
+```{r}
+# Purpose: Andy noticed that Specimen_ID 15-00829 was plated on two separate Inhibitor Panels (so NOT considered replicates)
+#          for all 21 of the single agents included in the Combo Drug ex vivo sensitivity assay project.
+#          The names of these two Inhibitor Panels are: 'MarcTest 384 1234v10A' and 'MarcTest 384 1234v10B'
+#          Steve Kurtz said to remove the observations for panel '...v10B' b/c these are duplicates  
+
+
+# Create df 
+All_data_v3 <- All_data_v2 %>% filter(!(Specimen_ID == '15-00829' & 
+                                          Drug %in% c('ABT-199 (BH3 mimetic)', 'Alisertib (MLN8237)', 'Array-382',
+                                                      'Cabozantinib (XL-184)', 'Crizotinib (PF-2341066)', 'Cytarabine',
+                                                      'Dasatinib', 'Doramapimod (BIRB 796)', 'Entospletinib (GS-9973)',
+                                                      'GS-1101 (CAL-101)', 'Ibrutinib (PCI-32765)', 'JQ1', 'Nutlin 3a',
+                                                      'Palbociclib', 'Panobinostat', 'Quizartinib (AC220)',
+                                                      'Ruxolitinib (INCB018424)', 'Sorafenib', 'Trametinib (GSK1120212)',
+                                                      'Vandetanib (ZD6474)','Vemurafenib (PLX-4032)') & 
+                                          Inhibitor_Panel == 'MarcTest 384 1234v10B'))
+
+
+# Check
+#dim(All_data_v3) # 64,904 (deleted 196 obs) by 11 
+
+# note: 196 obs were deleted b/c 14 single agents (each with 7 doses) had 1 replicate on this 'v10B' plate and 
+#         7 single agents (each with 7 doses) had 2 replicates on this 'v10B' plate and {(14*7) + (7*7*2)} = 196.
+#       The 7 single agents plated twice on this 'v10B' Inhibitor Panel are: Array-382, Crizotinib, Dasatinib,  
+#         Quizartinib, Ruxolitinib, Sorafenib, and Vemurafenib 
+```
+
+<span style="color:red"> Removed the duplicates (above)... not totally sure whats going on below here, nested data... lots of checks going on but why the new variables? adding a ceiling to some results value? </span> 
+
+```{r}
+####
+## Step 0.E: Average the normalized %viability across replicates  --------------------------------------------------------
+
+# Create df
+All_nested_v1 <- All_data_v3 %>% group_by(Specimen_ID,Drug,Dose) %>% tidyr::nest()
+
+# Checks
+dim(All_nested_v1) # 58926 rows (122*69*7 = 58,926) by 4 columns (list-column = 'data')
+
+dim(All_nested_v1$data[[1]])  # 2 by 8 so there ARE replicates (ie, 2 platings) for this grouping
+dim(All_nested_v1$data[[58926]])  # 1 by 8 so there are NO replicates for this sample/drug/dose grouping
+
+
+# FUNCTION I to make sure 'Replicant' column is correct in database export 
+Row_per_grouping <- function(df) {
+  nrow(df)  # nrows should be 1 or 2 
+}
+
+# FUNCTION II to make sure 'Replicant' column is correct in database export
+Rep_values <- function(df) {
+  df %>% select(Replicant) %>% n_distinct
+}
+
+
+# Create df 
+# purpose: make sure every sample/drug/dose grouping has Replicant values of 1 or 2 that are correctly coded 
+All_nested_v2 <- All_nested_v1 %>% mutate(num_platings = map_dbl(.x=data, .f=Row_per_grouping),
+                                          num_reps = map_dbl(.x=data, .f=Rep_values),
+                                          check_reps = ifelse(num_platings == num_reps, 1, 0))
+
+# Checks 
+dim(All_nested_v2)  # 58926 by 7 (3 new)
+
+All_nested_v2 %>% count(num_platings)
+#    num_platings   n
+#       <dbl>      <int>
+# 1      1         52948
+# 2      2         5978
+
+All_nested_v2 %>% count(check_reps) 
+# RESULT: every value = 1 --> this indicates that the `Inhibitor Interpreted Result: Replicant` column
+#         from the Beat AML database export was CORRECTLY coded and can be trusted 
+
+
+
+# FUNCTION to *average the normalized %viability values across same-plate replicates*
+#   --> note: there ARE replicates (2 platings) for 7 of the 21 single agents but NO replicates for the 48 combo drugs 
+Ave_across_Reps <- function(df) {
+  mean(unlist(df[,'Normalized_Result']),na.rm=TRUE)  # shouldn't be any missing values
+}
+
+
+# CREATE df 
+# add new vars: Ave_Result, Final_Result, number 
+All_nested_v3 <- All_nested_v2 %>% mutate(Ave_Result = map_dbl(.x=data, .f=Ave_across_Reps),
+                                          Final_Result = ifelse(Ave_Result > 100, 100, Ave_Result),
+                                          number = 100)
+
+# Checks 
+dim(All_nested_v3) # 58926 by 10 (3 new) 
+
+# make sure there are no Averaged %viability values < 0 
+summary(All_nested_v3$Final_Result)
+# RESULT: minimum value is 0 
+```
+
+<span style="color:red"> I don't understand this data yet, so I'm going to play with it a bit... </span> 
+
+# why add the ceiling in Final_Result? and why add number variable if they all equal 100? 
+
+```{r}
+glimpse(All_nested_v3)
+All_nested_v3 %>% distinct(Drug)
+All_nested_v3 %>% filter(Specimen_ID=="15-00661")
+All_nested_v3 %>% count(Drug)
+```
+
+```{r}
+# lets look at just one drug - Allistertib 
+
+my_data <- All_nested_v3 %>% filter(Drug== "Alisertib - Crizotinib") %>% filter(Specimen_ID=="15-00661")
+
+glimpse(my_data)
+my_data %>% distinct(Specimen_ID)
+
+#my_data %>% count(Dose)
+#my_data %>% group_by(Dose) %>% summarize(dose_res = mean(Final_Result))
+#my_data %>% distinct(Specimen_ID)
+#my_data %>% distinct(Inhibitor_Panel)
+#my_data %>% distinct(Specific_diag)
+# drug - all the same
+#my_data %>% distinct(Replicant) # what is the replicant? 
+
+#my_data %>% ggplot(aes(x=as.factor(Dose), y=Final_Result, color=as.factor(Dose))) + geom_violin() + geom_point()
+
+#my_data %>% ggplot(aes(x=as.factor(Dose), y=Final_Result, color=as.factor(Dose))) + geom_boxplot() #+ facet_wrap(Specific_diag)
+
+#my_data %>% ggplot(aes(x=Dose)) + geom_density() + ggtitle("probability distribution") # probably needs to be normalized
+
+#my_data %>% ggplot(aes(x=Final_Result)) + geom_density() + ggtitle("probability distribution")
+
+#my_data %>% ggplot(aes(x=Dose)) + stat_ecdf()
+# semi linear because DOse has taken the log already? 
+#my_data %>% ggplot(aes(x=Final_Result)) + stat_ecdf() + ggtitle("CDF")
+
+my_data <- my_data %>% mutate(zviab = scale(Final_Result / 100, center=TRUE, scale=TRUE)) #proportion of alive 
+my_data <- my_data %>% mutate(zdose = scale(log10(Dose), center=TRUE, scale=TRUE)) # log 10 scaled dose 
+
+my_data <- my_data %>% mutate(prob_viab = qnorm(zviab))
+my_data$zviab
+my_data$prob_viab
+
+my_data %>% ggplot(aes(x=Dose, y= qnorm(Final_Result /100))) + geom_point() + geom_smooth(method='lm', se=FALSE) + ggtitle("probit space regression")
+
+my_data %>% ggplot(aes(x=Dose, y= (Final_Result /100))) + geom_point() + geom_smooth(method='lm', se=FALSE) + ggtitle("probability space regression")
+
+
+
+```
+observation, the average Final_Result actually increases over all smaples on the highest two doses, so my question is: 
+Is this caused by variation in the base viability of samples (ie all samples decrease with dose but a constant scales them up and down) ? 
+
+group by Speciment Id 
+create lm using 
+plot the residue distribution of last two doses
+- if Final Result is really increasing on those last two doses the residue should be positive. 
+
+Then separate those with the above trend and look at distinctions of the two groups 
+
+
+```{r}
+
+my_data %>% filter(Specimen_ID == "15-00661") %>% ggplot(aes(x=Dose, y=Final_Result), color=as.factor(Dose)) + geom_point() + geom_smooth(method='lm')
+  
+```
+
+# cell viability is measured by fluorescence imaging 
+"MTS_ASSAY INFO HERE"[https://www.abcam.com/mts-assay-kit-cell-proliferation-colorimetric-ab197010.html]
+  -> add a dye that fluoursces when it is metabolized ... so greater fluroescence corresponds to greater cell activity?
+  -> could this be a skewed measurement by the drug affected pathways? Smaller "viable" population but greater metabolic activity ? 
+<span style="color:red"> So the Result coloumn is number of cells still alive? so the -> ceiling of 100 is a metric to convert to % cells still alive? </span> 
+
+
+####
+## Step 1: Import TRAINING SET sensitivity data  --------------------------------------------------------
+
+```{r}
+# CREATE df  (this df has one row per sample/drug/dose and averaged %viability values per row)
+#  --> Unnest the dataset and filter on Replicate=1  
+#  --> PRE-EM data for Training Set (n=122 samples, 69 drugs)  -->  all replicates have ALREADY been AVERAGED 
+Pre_EM_122_v1 <- All_nested_v3 %>% tidyr::unnest() %>% filter(Replicant==1) %>% select(-c(num_platings,check_reps))
+
+# Check 
+dim(Pre_EM_122_v1)  # 58926 by 15 (8 added but 'data' dropped in unnesting and 2 other vars dropped)
+
+
+# ****  VERIFIED: alternative starting point IF you DON'T RUN ANY of the ABOVE COMMANDS  ****
+
+# DON'T RUN --> alternative code to above command starting with the CSV file exported from SAS.
+#               The created df will have 14 columns not 15 (b/c no 'num_reps' column)
+
+# Pre_EM_122_v1 <- readr::read_csv(file='../../Shannon files Beat AML/PRE_EM_122samp_Cleaned_Oct2016.csv')
+# dim(Pre_EM_122_v1)  # 58,926 by 14 --> # rows = 122 samples * 69 drugs * 7 doses = 58,926 observations 
+
+# ****  END of alternative starting point section   ***********************
+
+
+# CREATE df
+# --> add 'prop' variable to use in glm() when fitting probit curves 
+Pre_EM_122_v2 <- mutate(Pre_EM_122_v1, prop = Final_Result / number)
+
+# Check 
+dim(Pre_EM_122_v2)  # 58,926 by 16 (1 new var)
+
+```
+
+####
+## Step 2: create Nested data.frame (df)  --------------------------------------------------------
+
+
+# purpose: create a data.frame with one row per sample/drug pairing (aka profile), while storing the dose-response data 
+#          as a nested data.frame for each row 
+
+```{r}
+Nest_sample_drug_8418_v1 <- Pre_EM_122_v2 %>% group_by(Specimen_ID, Drug) %>% tidyr::nest()
+
+dim(Nest_sample_drug_8418_v1)   # 8418 by 3  (8418 rows b/c 122 samples * 69 drugs), column 'data' is 7 by 26 
+names(Nest_sample_drug_8418_v1) # 'Specimen_ID' (character), 'Drug' (character), 'data' (list of data.frames)
+```
+
+
+####
+## Step 3: determine if probit can be fit to each profile  -----------------------------------------------------------
+
+
+# Create df 
+# map_dbl() takes a list as input and outputs a double vector 
+# this command invokes user-function 'flag_0_100' (see bottom of this script)
+```{r}
+Nest_sample_drug_8418_v2 <- Nest_sample_drug_8418_v1 %>% mutate(flag = purrr::map_dbl(data,flag_0_100))
+
+# Check 
+dim(Nest_sample_drug_8418_v2)         # 8418 by 4 (new var: flag)
+typeof(Nest_sample_drug_8418_v2$flag) # double
+
+# Check: determine the number of sample/drug pairings that have "all 100" or "all 0" scenarios 
+janitor::tabyl(Nest_sample_drug_8418_v2$flag)
+# Unnest_8418_flags$flag    n     percent
+# 1                      0  114 0.013542409
+# 2                      1 8244 0.979330007
+# 3                    100   60 0.007127584
+
+
+# CREATE df with flag =0 or =100  (these are profiles that Probit cannot fit)
+Flags_0_100_v1 <- Nest_sample_drug_8418_v2 %>% filter(flag %in% c(0,100))
+
+# Check
+dim(Flags_0_100_v1)  # 174 by 4 
+
+
+# CREATE df with flag =1  (these profiles CAN be fit by Probit)
+Flags_1_v1 <- Nest_sample_drug_8418_v2 %>% filter(flag==1)
+
+# Checks
+dim(Flags_1_v1)    # 8244 by 4 
+names(Flags_1_v1)  # Specimen_ID, Drug, data, flag 
+
+```
+
+####
+## Step 4: fill-in columns for "all 0/100" flagged profiles  ------------------------------------------
+
+## Purpose: provide IC50/AUC values for profiles with flag = (0,100)
+
+
+# fill-in IC50 and AUC values for profiles that probit cannot fit because of a single %viability value
+# note: Max dose is 1 uM for Dasatinib (all other drugs have Max dose of 10 uM) --> this comment is based on
+#       the 69 single agents analyzed for Steve Kurtz's combo drug study published in PNAS 
+```{r}
+Flags_0_100_df <- Flags_0_100_v1 %>% mutate(beta0 = NA, beta1 = NA,
+                                            IC50 = ifelse(Drug=="Dasatinib",ifelse(flag==0,0.01371742/10,1),
+                                                          ifelse(flag==0,0.01371742,10)),
+                                            AUC = ifelse(flag==0,0.5,286.273))
+# Check
+dim(Flags_0_100_df)  # 174 by 8 (4 new)
+
+
+# CREATE vector, which will be used for checking purposes in Step 8 below
+flagged_names <- names(Flags_0_100_df)  # before using rbind(), make sure the column names and ordering are the same
+```
+
+
+####
+## Step 5: compute PROBIT COEFFS for standard profiles   --------------------------------------------------
+
+ 
+# purpose: add a new column ('coeffs'), which is a list of double vectors containing the 2 probit reg coefficients
+# recall: df 'Flags_1_v1' created in Step 3
+
+# Create df
+```{r}
+Flags_1_probit <- Flags_1_v1 %>% mutate(coeffs = purrr::map(data,probit_fit))  # map() returns a list 
+# R warning: "There were 50 or more warnings (use warnings() to see the first 50)"
+#  note: above warnings are indicating that the response is a non-integer, which was intentional in order to use 
+#        the events/trials modeling notation
+
+dim(Flags_1_probit)   # 8244 rows by 5 vars (Specimen_ID, Drug, data, flag, coeffs)
+typeof(Flags_1_probit$coeffs) # list
+
+```
+
+####
+## Step 6: compute IC50 and AUC for standard profiles  ----------------------------------------------------
+
+
+# Create df
+# invoke user-defined functions (included at bottom of this script) 'compute_IC50' and 'compute_AUC'
+# note: this command takes a few hours to execute --> making it a great candidate for parallel processing :-)
+```{r}
+Flags_1_probit_IC50_AUC <- Flags_1_probit %>% mutate(IC50 = map2_dbl(.x=coeffs,.y=Drug,.f=compute_IC50),
+                                                     AUC = map2_dbl(.x=coeffs,.y=Drug,.f=compute_AUC))
+
+glimpse(Flags_1_probit_IC50_AUC)
+
+
+dim(Flags_1_probit_IC50_AUC)  # 8244 rows by 7 columns (2 new)
+```
+
+
+####
+## Step 7: extract 'beta0' and 'beta1' columns for standard profiles  -----------------------------------------
+
+# Checking: show that column 'coeffs' is a list and each element of this list is a double vector of length 2 
+```{r}
+typeof(Flags_1_probit_IC50_AUC$coeffs)  # list 
+typeof(Flags_1_probit_IC50_AUC$coeffs[[8244]])  # double
+length(Flags_1_probit_IC50_AUC$coeffs[[8244]])  # 2
+
+
+# Create df
+# invoke user-defined function (provided at bottom of this script) 'beta_extract'
+# note: the third argument to map_dbl() is for the ... (dots) that are additional args passed on to .f
+Flags_1_penult_df <- Flags_1_probit_IC50_AUC %>% mutate(beta0 = map_dbl(.x=coeffs,.f=beta_extract,1),
+                                                        beta1 = map_dbl(.x=coeffs,.f=beta_extract,2))
+
+dim(Flags_1_penult_df) # 8244 rows by 9 columns (2 new)
+```
+
+
+####
+## Step 8: combine standard profiles with flagged profiles  ------------------------------------------------
+
+# Purpose: use rbind() to stack sample/drug pairings that were fit by probit ("standard") with sample/drug pairings 
+#          ("flagged") that had "all 100" or "all 0" %viability values and thus could not be modeled 
+
+# recall 'Flags_0_100_df' for the flagged profiles was created in Step 4 above
+```{r}
+dim(Flags_0_100_df)  # 174 by 8
+
+
+# Create df
+# Remove the 'coeffs' column and reorder a few other columns (making IC50 and AUC the last 2 columns)
+Flags_1_final_df <- Flags_1_penult_df %>% select(Specimen_ID, Drug, data, flag, beta0, beta1, IC50, AUC)
+
+# Check
+dim(Flags_1_final_df)  # 8244 by 8
+
+
+# CREATE vector: save column names of Standard profiles to compare with column names of flagged profiles
+standard_names <- names(Flags_1_final_df)
+
+
+# Checking: Make sure the 2 data.frames (standard profiles & flagged profiles) have the same column names and positions 
+# note: vector 'flagged_names' was created in Step 4 above
+identical(x=flagged_names,y=standard_names)  # TRUE
+
+
+# Create df 
+# vertically STACK the two data.frames with rbind()
+Training_all_profiles <- rbind(Flags_0_100_df,Flags_1_final_df)
+
+dim(Training_all_profiles)  # 8418 (174 + 8244) obs and 8 vars --> 122 samples * 69 drugs = 8418 
+
+
+# Checking: this df is NESTED b/c 1 column ('data') is a list --> could unnest() this list-column or just remove this column
+class(Training_all_profiles$data) # list
+class(Training_all_profiles$data[[8418]]) # data.frame
+```
+
+
+####
+## Step 9: Remove the List-column (7-dose profile data) for output purposes  ----------------------------------------------------
+
+# remove the 'data' column b/c this is a list-column (each element of the list is a data.frame) that can't be viewed in
+#    Excel and b/c we already used the response values for the 7 doses to generate probit regression coefficients
+```{r}
+Training_all_beta_IC50_AUC <- Training_all_profiles %>% select(-data)
+
+dim(Training_all_beta_IC50_AUC)  # 8418 by 7 (vars: Specimen_ID, Drug, flag, beta0, beta1, IC50, AUC)
+
+```
+
+####
+## Step 10: create dataset of unique *Specimen ID* values  -----------------------------------------------------------
+```{r}
+# create a dataset with only one column of the 122 unique Specimen ID values 
+Specimen_ID_122_only <- Training_all_beta_IC50_AUC %>% dplyr::distinct(Specimen_ID,.keep_all=FALSE)
+
+# Check
+dim(Specimen_ID_122_only)  # 122 by 1 
+
+
+# Create vector
+# add a column called 'sample_ID' ranging from 1 to 122
+sample_ID <- seq(from=1,to=122)
+
+
+# Create df
+# note: will use this matching of Specimen_ID' values to numbers (1 to 122) when creating the final CR dataset 
+Specimen_ID_122_2columns <- cbind(Specimen_ID_122_only,sample_ID)  
+
+# Check
+dim(Specimen_ID_122_2columns)  # 122 by 2 
+```
+
+
+####
+## Step 11: Import dataset containing *Drug ID* values  -----------------------------------------------------------------------
+
+# read in the CSV with one row per drug (69 drugs: 48 combo's and 21 constituent Single Agents)
+# columns are 'Drug', 'Drug_ID', and 'Drug_type' and the Drug names pertain only to the Training Set (n=122) 
+```{r}
+Training_Drug_ID_69 <- readr::read_csv(file='Drug_IDs_Training_May2017_CSV.csv')
+
+# Checks
+dim(Training_Drug_ID_69)  # 69 by 3 
+names(Training_Drug_ID_69)
+
+Training_Drug_ID_69 %>% count(Drug_type)
+# 1        cb    48
+# 2        sa    21
+
+# note about output above: "sa" = Single Agent, "cb" = Combination drug
+
+
+####
+## Step 12: add Sample ID and Drug ID columns  -----------------------------------------------------------
+
+
+# review of df created in Step 9 above
+dim(Training_all_beta_IC50_AUC)   # 8418 by 7 (vars: Specimen_ID, Drug, flag, beta0, beta1, IC50, AUC)
+
+
+# Create df
+# MERGE Effect Measure (IC50/AUC) dataset with (i) the Drug ID's and then (ii) the Sample ID numbers 
+
+Training_8418_final <- left_join(x=Training_all_beta_IC50_AUC,y=Training_Drug_ID_69,by='Drug') %>%
+                       left_join(y=Specimen_ID_122_2columns,by='Specimen_ID') %>%
+                       select(sample_ID,Specimen_ID,Drug,Drug_ID,Drug_type,flag,beta0,beta1,IC50,AUC)
+
+
+dim(Training_8418_final)  # 8418 by 10 (2 new: Drug_ID, Drug_type)
+```
+
+
+####
+## Step 13: Output the *final IC50/AUC dataset* (one row per sample/drug)  ------------------------------------------
+
+```{r}
+# Export final IC50/AUC dataset (8418 by 10) to .xlsx file --> haven't computed CR's yet 
+xlsx::write.xlsx(x=Training_8418_final, file='Training_8418_IC50_AUC_Sept20.xlsx',
+                 showNA=FALSE)
+
+
+# Create RDS datafile, could also use 'readr::write_rds(x=,path=)'
+saveRDS(object=Training_8418_final,file='Training_8418_IC50_AUC_Sept20.rds')
+
+# RUN when re-opening this file to skip above steps and start with the Effect Measures data  
+Training_8418_final <- readRDS(file='Training_8418_IC50_AUC_Sept20.rds')
+```
+
+
+####
+## Step 14: Combo work --> create df of Drug ID's for each triad  -----------------------------------------
+
+ ```{r}
+# Create df
+# 1 row per Drug Combo/triad (48 combo's) and 3 columns: 1 column per drug in the drug combo/triad
+drugs_3_ID_df <- tribble(
+  ~Combo, ~SA1, ~SA2,
+  1, 49, 60,
+  2, 49, 62,
+  3, 49, 63,
+  4, 50, 53,
+  5, 49, 51,
+  6, 51, 60,
+  7, 51, 62,
+  8, 51, 63,
+  9, 51, 64,
+  10, 51, 67,
+  11, 52, 65,
+  12, 54, 61,
+  13, 49, 55,
+  14, 49, 56,
+  15, 56, 60,
+  16, 56, 62,
+  17, 56, 63,
+  18, 49, 58,
+  19, 51, 58,
+  20, 58, 60,
+  21, 58, 62,
+  22, 58, 63,
+  23, 58, 64,
+  24, 58, 65,
+  25, 58, 67,
+  26, 59, 64,
+  27, 60, 62,
+  28, 60, 63,
+  29, 62, 63,
+  30, 49, 64,
+  31, 60, 64,
+  32, 62, 64,
+  33, 63, 64,
+  34, 64, 67,
+  35, 49, 65,
+  36, 60, 65,
+  37, 62, 65,
+  38, 63, 65,
+  39, 49, 66,
+  40, 57, 66,
+  41, 60, 66,
+  42, 62, 66,
+  43, 63, 66,
+  44, 49, 67,
+  45, 60, 67,
+  46, 62, 67,
+  47, 63, 67,
+  48, 68, 69
+)
+
+dim(drugs_3_ID_df) # 48 by 3
+
+# save this df as an RDS file 
+readr::write_rds(x=drugs_3_ID_df,path='Drug_IDs_for_each_triad_48_by_3.rds')
+
+# Run when re-starting a session
+drugs_3_ID_df <- readr::read_rds(path='Drug_IDs_for_each_triad_48_by_3.rds')
+
+
+# Checking aside: FUNCTION to determine the number of drug combos/triads each single agent is involved in 
+
+SA_number <- function(drug_ID) {
+  length(which(drugs_3_ID_df$SA1==drug_ID | drugs_3_ID_df$SA2==drug_ID))
+}
+
+# Checks: call the function for specific Single Agents
+SA_number(49) # Venetoclax (Drug ID 49) --> involved in 11 Combo's 
+SA_number(50) # Alisertib (Drug ID 50) --> involved in 1 Combo's 
+SA_number(55) # Dasatinib (Drug ID 55) --> involved in 1 Combo's
+SA_number(60) # JQ1 (Drug ID 60) -->  involved in 10 Combo's 
+SA_number(63) # Panobinostat (Drug ID 63) -->  involved in 10 Combo's 
+SA_number(65) # Ruxolitinib (Drug ID 65) -->  involved in 6 Combo's 
+
+# conclusion: all above CHECKS PASSED 
+
+``` 
+
+####
+## Step 15: Combo work --> compute CR's for each sample/combo pairing  ----------------------------------------------------
+
+# note: for Steve Kurtz study, there were 122*48 = 5856 sample/combo pairings in the Training Set 
+
+# reminder: final sample/drug dataset (of IC50's and AUC's) created in Step 12
+```{r}
+dim(Training_8418_final) # 8418 by 10
+                                                                        
+
+# NOTE: Dasatinib was plated at a 10-fold lower dose for each of the 7 doses when combined with venetoclax 
+#            --> hence, the IC50 CR for this particular combo/triad (#13) has to be computed differently 
+
+# 'i' index denotes the sample ID (there are 122 samples in Training Set)
+# 'j' index denotes the Combo ID (there are 48 drug combos/triads)
+
+# the following for loops will produce 5856 (122 samples * 48 combos) 'output_i_j' datasets
+
+# --> invoke 'dasatinib_CR()' for combo #13 (output_i_13) to accommodate dasatinib being plated on 10-fold lower dose series 
+# --> invoke 'compute_CR()' for the remaining 47 (of 48) combo's for which both drugs were plated on the standard dose series 
+# --> invoke 'index_drugs_3_ID_df()', which is listed at the bottom of this script
+for (i in 1:122) {
+  for (j in 1:48) {
+    if (j != 13) {
+      compute_CR(Training_8418_final,i,j,index_drugs_3_ID_df(j))
+    } else {
+      dasatinib_CR(Training_8418_final,i,j,index_drugs_3_ID_df(j))
+    }
+  }
+}
+
+
+
+####
+## Step 16: Combo work --> MERGE sample/combo CR datasets  ----------------------------------------------------------
+
+# create empty data.frame of 5856 (122*48) rows and 4 columns
+Training_all_sample_combo_pairs <- data.frame(sample_ID = vector(mode="numeric",length=5856), 
+                                              Drug_ID = vector(mode="numeric",length=5856),
+                                              IC50_CR = vector(mode="numeric",length=5856), 
+                                              AUC_CR = vector(mode="numeric",length=5856))
+dim(Training_all_sample_combo_pairs)  # 5856 (b/c 122 samples * 48 combo's) by 4
+
+
+# MODIFY df: populate the empty df (4 empty columns)
+for (i in 1:122) {
+  for (j in 1:48) {
+    Training_all_sample_combo_pairs[1+((i-1)*48)+(j-1),] <- eval(expr=as.name(x=paste("output_",i,"_",j, sep="")))
+  }
+}
+
+
+# Checking commands 
+range(Training_all_sample_combo_pairs$sample_ID)  # 1 to 122
+range(Training_all_sample_combo_pairs$Drug_ID)  # 1 to 48
+```
+
+####
+## Step 17: Combo work --> Merge in Specimen names and Drug names    ----------------------------------------------
+```{r}
+# recall: dataset with Specimen_ID names and sample_ID values created in Step 10 
+dim(Specimen_ID_122_2columns)  # 122 by 2
+names(Specimen_ID_122_2columns)  # [1] "Specimen_ID" "sample_ID"
+
+# recall: dataset with Drug names and Drug_ID values created in Step 11
+dim(Training_Drug_ID_69)  # 69 by 3
+names(Training_Drug_ID_69)  # [1] "Drug"      "Drug_ID"   "Drug_type"
+
+
+# Create df
+# only keep Drug_ID values from 1 to 48 (for the Combo's)
+Combo_Drug_ID_48 <- Training_Drug_ID_69[1:48,1:2]
+
+
+# Create final df (1 row for each sample/combo pairing)
+# MERGE in the (i) Specimen ID names and (ii) Combo/triad Drug names and then reorder columns  
+Training_5856_CR_final <- Training_all_sample_combo_pairs %>% 
+                       left_join(y=Specimen_ID_122_2columns,by='sample_ID') %>% 
+                       left_join(y=Combo_Drug_ID_48,by='Drug_ID') %>% 
+                            select(Specimen_ID,sample_ID,Drug,Drug_ID,IC50_CR,AUC_CR)
+
+dim(Training_5856_CR_final)  # 5856 (122*48) by 6 (2 new)
+```
+
+
+####
+## Step 18: Combo work --> Output the *final CR dataset* (one row per sample/triad) --------------------------------------
+
+```{r}
+# Export the 5856 by 6 df to an Excel file
+xlsx::write.xlsx(x=Training_5856_CR_final,file='Training_5856_CR_Sept20.xlsx',
+                 row.names=FALSE, showNA = FALSE)
+
+
+# Save RDS datafile
+saveRDS(object=Training_5856_CR_final,file='Training_5856_CR_Sept20.rds')
+
+# Run when opening this script to work with the df containing IC50_CR and AUC_CR values 
+Training_5856_CR_final <- readRDS(file='Training_5856_CR_Sept20.rds')
+
+```
+
+####
+## FUNCTIONS      FUNCTIONS         FUNCTIONS      --------------------------------------------------------
+
+
+## ** FUNCTION #1: divide profiles into 2 groups  ------------------------------------------------------------
+
+# Purpose: return '100' if all 7 viability values are 100%, '0' if all 7 values are 0%, and '1' otherwise 
+
+# input: a data.frame (tibble)
+# output: a numeric value
+
+# requirement: argument (dataset) must have a variable called 'Final_Result'
+
+```{r}
+flag_0_100 <- function(df) {
+  
+  if (sum(df$Final_Result) == 700) {
+    flag = 100
+  } else if (sum(df$Final_Result) == 0) {
+    flag = 0
+  } else flag = 1
+  
+  return(flag)
+}
+
+```
+
+## ** FUNCTION #2: Probit fitting  ------------------------------------------------------------------------------
+
+# Purpose: fit a Probit regression line to a 7-point dose-response series 
+
+# input:  a data.frame consisting of 7 rows 
+# output: a list of length 2: beta0 coeff, beta1 coeff
+
+# requirements: df must have variables 'prop' (the cell viability proportion), 'log10conc' (log10 dose concentration),
+#               'number' (=100 for every obs)
+
+```{r}
+# note: removed glm() option 'weights=number' so that model convergence was more likely
+probit_fit <- function(df) {
+  # 
+  probit_obj <- glm(prop ~ log10conc, family=binomial(link="probit"), data=df)
+  probit_obj$coefficients
+}
+```
+
+
+## ** FUNCTION #3:  compute the IC50  -----------------------------------------------------------------------
+
+# input:  a list containing the two probit reg coefficients
+# output: a double (the IC50 value)
+
+# recall: Dasatinib is the only single agent (included among the 69) plated on the 10-fold lower series
+
+```{r}
+compute_IC50 <- function(list2,drug) {
+  
+  if (drug=='Dasatinib') {
+    max_dose = 1
+  } else {
+    max_dose = 10
+  }
+  
+  # significance of 729 (3**6)?
+  inc <- 0.00001;  min_log_dose <- log10(max_dose/(3**6));  max_log_dose <- log10(max_dose)
+  IC50_log10 <- max_log_dose
+  log_dose_range <- seq(from=min_log_dose, to=max_log_dose, by=inc)
+  
+  for (i in log_dose_range) {
+      #                      B0       log_dose  B1
+    curve_height = pnorm(q=(list2[[1]] + i*list2[[2]]), lower.tail=TRUE) * 100 # this is converting probit -> % cell viability
+    
+  print(c(curve_height, IC50_log10))
+    if (curve_height <= 50 & i < IC50_log10) {   # running though points until find first dose that results in % cell viabilty of 50% - seems like a weird way to do this. 
+      IC50_log10 <- i
+    }
+  }
+  #convert back from log10
+  IC50_uM <- 10**IC50_log10
+}
+```
+
+## ** FUNCTION #4:  compute the AUC  ------------------------------------------------------------------
+
+# input:  a list containing the two probit reg coefficients
+# output: a double (the AUC value)
+
+# make accommodation for Dasatinib plating (10-fold smaller) 
+```{r}
+compute_AUC <- function(list2,drug) {
+  
+  if (drug=='Dasatinib') {
+    max_dose = 1
+  } else {
+    max_dose = 10
+  }
+  
+  inc <- 0.00001;  min_log_dose <- log10(max_dose/(3**6));  max_log_dose <- log10(max_dose)
+  x_vals <- seq(from=min_log_dose, to=max_log_dose, by=inc)
+  y_vals <- pnorm(q=(list2[[1]] + x_vals*list2[[2]]),lower.tail=TRUE)*100
+  AUC <- sfsmisc::integrate.xy(x_vals,y_vals)
+}
+```
+
+## ** FUNCTION #5:  extract each beta from the 'coeffs' list   ----------------------------------------------
+
+# input:  a list where each element is a vector of two doubles
+# output: a double
+
+# note: this function is called to create both 'beta0' and 'beta1' columns
+```{r}
+beta_extract <- function(list2,index) {
+  
+  assign(x=paste0('beta_',index-1), value=list2[[index]], envir=.GlobalEnv)
+}
+```
+
+
+## ** FUNCTION #6a: create CR dataset (single row) for a sample/combo pairing   ------------------------------------------------
+```{r}
+compute_CR <- function(sample_drug_data,sampleID,combo,drugs) {
+  
+  subset <- sample_drug_data %>% filter(sample_ID == sampleID & Drug_ID %in% drugs)
+  
+  # compute IC50 CR  
+  num_IC50_CR <- subset %>% filter(Drug_type=="cb") %>% summarize(combo_IC50 = IC50) %>% unlist() %>% unname()
+  denom_IC50_CR <- subset %>% filter(Drug_type=="sa") %>% summarize(min_SA_IC50 = min(IC50)) %>% unlist() %>% unname()
+  IC50_CR = num_IC50_CR / denom_IC50_CR
+  
+  # compute AUC CR
+  num_AUC_CR <- subset %>% filter(Drug_type=="cb") %>% summarize(combo_AUC = AUC) %>% unlist() %>% unname()
+  denom_AUC_CR <- subset %>% filter(Drug_type=="sa") %>% summarize(min_SA_AUC = min(AUC)) %>% unlist() %>% unname()
+  AUC_CR = num_AUC_CR / denom_AUC_CR
+  
+  assign(x=paste0('output_',sampleID,'_',combo), value=cbind(sampleID,combo,IC50_CR,AUC_CR), envir=.GlobalEnv)
+}
+```
+
+
+## ** FUNCTION #6b:  create CR dataset (single row) for a sample/Dasatinib pairing  ----------------------------------------
+
+# note: the IC50 (and AUC) for the combo drug for Combo_ID #13 was computed on the regular dose scale (0.0137 to 10 uM) 
+#       even though Dasatinib was plated on the 10-fold lower scale when creating the 7 combination doses for Combo #13 
+```{r}
+dasatinib_CR <- function(sample_drug_data,sampleID,combo,drugs) {
+  
+  subset <- sample_drug_data %>% filter(sample_ID == sampleID & Drug_ID %in% drugs)
+  
+  # compute IC50 CR  -->  Combo #13 had regular Venetoclax doses and 10-fold smaller doses of Dasatinib
+  large_combo_IC50 <- subset %>% filter(Drug_type=="cb") %>% summarize(combo_IC50 = IC50) %>% unlist() %>% unname()
+  small_combo_IC50 <- large_combo_IC50 / 10
+  dasat_IC50 <- subset %>% filter(Drug=='Dasatinib') %>% summarize(dasat_IC50 = IC50) %>% unlist() %>% unname()
+  venet_IC50 <- subset %>% filter(Drug=='ABT-199 (BH3 mimetic)') %>% summarize(venet_IC50 = IC50) %>% unlist() %>% unname()
+  dasat_CR <- small_combo_IC50 / dasat_IC50
+  venet_CR <- large_combo_IC50 / venet_IC50
+  # the "better" (more effective) single agent will have the larger CR b/c Single Agent IC50 is in denominator 
+  IC50_CR = max(dasat_CR,venet_CR)
+  
+  # compute AUC CR --> note: AUC is unaffected by the 10-fold decrease applied to each dose point (where doses are log10 transformed)
+  num_AUC_CR <- subset %>% filter(Drug_type=="cb") %>% summarize(combo_AUC = AUC) %>% unlist() %>% unname()
+  denom_AUC_CR <- subset %>% filter(Drug_type=="sa") %>% summarize(min_SA_AUC = min(AUC)) %>% unlist() %>% unname()
+  AUC_CR = num_AUC_CR / denom_AUC_CR
+  
+  assign(x=paste0('output_',sampleID,'_',combo), value=cbind(sampleID,combo,IC50_CR,AUC_CR), envir=.GlobalEnv)
+}
+```
+
+## ** FUNCTION #7:  output a vector of Drug ID's involved in a Triad  --------------------------------------------- 
+
+# dependency: the df with one row for each of the 48 drug combos/triads imported in Step 11 above 
+# input: the Combo ID # 
+# output: the 3 Drug ID's corresponding to the Combo ID #
+```{r}
+index_drugs_3_ID_df <- function(index) {
+  drug_row <- drugs_3_ID_df[index,] %>% unlist() %>% unname()
+}
+```
+
+### END of FUNCTIONS
+###
+
+
+
+
+
+

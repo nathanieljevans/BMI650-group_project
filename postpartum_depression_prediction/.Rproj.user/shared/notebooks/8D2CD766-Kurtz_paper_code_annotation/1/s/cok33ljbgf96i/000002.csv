@@ -1,0 +1,4 @@
+"0","Flags_1_probit_IC50_AUC <- Flags_1_probit %>% mutate(IC50 = map2_dbl(.x=coeffs,.y=Drug,.f=compute_IC50),"
+"0","                                                     AUC = map2_dbl(.x=coeffs,.y=Drug,.f=compute_AUC))"
+"2","Error in eval(lhs, parent, parent) : object 'Flags_1_probit' not found
+"

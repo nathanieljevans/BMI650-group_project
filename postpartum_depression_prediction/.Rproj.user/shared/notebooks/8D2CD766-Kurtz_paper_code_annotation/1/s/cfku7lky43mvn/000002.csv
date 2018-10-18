@@ -1,0 +1,6 @@
+"0","Flags_0_100_df <- Flags_0_100_v1 %>% mutate(beta0 = NA, beta1 = NA,"
+"0","                                            IC50 = ifelse(Drug==""Dasatinib"",ifelse(flag==0,0.01371742/10,1),"
+"0","                                                          ifelse(flag==0,0.01371742,10)),"
+"0","                                            AUC = ifelse(flag==0,0.5,286.273))"
+"2","Error in eval(lhs, parent, parent) : object 'Flags_0_100_v1' not found
+"
