@@ -173,9 +173,9 @@ ANSIEDADFOBICA3
 Cortisol1
 Cortisol2
 Cortisol2
-DEPRESIÓN2
+DEPRESIÃ“N2
 EPDS
-IDEACIÓNPARANOIDE3
+IDEACIÃ“NPARANOIDE3
 OBSESIONESYCOMPULSIONES3
 PSICOTICISMO1
 PSICOTICISMO3
@@ -270,13 +270,13 @@ I haven't find p-hacked situation.
 If the data follows Benford's Law, the numbers should be close to: <br />
 Statistic	Value <br />
 Mean	0.5 <br />
-Variance	1/12 (0.08333�.�) <br />
+Variance	1/12 (0.08333â.¦) <br />
 Ex. Kurtosis	-1.2 <br />
 Skewness	0 <br />
 
 Here are several variables fails to Benford's law
 
-#```{r}
+```{r}
 
 #Test skewness variables with benford function
 benford(finalProject$ANSIEDADFOBICA1)
