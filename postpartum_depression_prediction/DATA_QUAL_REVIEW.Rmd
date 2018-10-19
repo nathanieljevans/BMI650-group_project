@@ -1,0 +1,253 @@
+---
+title: "Nate-DataQualityReview"
+author: "Nathaniel Evans"
+date: "October 16, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(haven)
+library(tidyr)
+library(dplyr)
+library(reticulate)
+```
+
+
+## Nates Items 16:32 ------------------------------------------
+Spreadsheet has 65536 rows  
+ -> 73 observations 
+Spreadsheet has 255 columns  
+ -> 71 Variables
+Spreadsheet has dates in 1900, 1904, 1969, or 1970  
+ -> No date variable 
+Text has been converted to numbers 
+ -> Not totally sure what that would look like, but no unexpected data types or unreasonable numbers per label
+Numbers have been stored as text  
+ -> all variables are of type <dbl> even binaries as 0/1 
+Text is garbled  
+ -> Garbled no, but it is in spanish which will present a problem. Attempted to write a python script to translate but google translate didn't know some words and being concatenated without spaces was an issue I think. 
+Line endings are garbled   
+ -> No but the .sav file was problematic when reading into excel, I had to read into R, save as csv, then open in excel. 
+Data are in a PDF  
+ -> Fortunately no, but see last question. 
+Data are too granular  
+ -> Data is mostly questionaires, so naturally granular, but not too much we can do about that. 
+Data were entered by humans  
+ -> This is true, but it was the only feasible way. Less problematic since given 1-5 scores on questionaires and then feature extraction from that to give mostly continuous value metrics. 
+Data are intermingled with formatting and annotations  
+Aggregations were computed on missing values  
+ -> No nested data, so nothing like that, I have no idea the data pipeline from questionaire data to provided metrics and there could be a host of issues there. No way to know without talking to the PI. 
+Sample is not random  
+ -> This is true, but the women selected for the study were selected to remove biased cortisol readings. So, they were chosen NOT at random but to provide the most normal population variation. 
+Margin-of-error is too large  
+ -> Dealing with psychology so I'd say yes, margin of error here is huge. Not easily controlled for. 
+Margin-of-error is unknown  
+ -> same as above. Margin of error on cortisol measurement is more knowable and worth looking into, the methods section didn't list the resolution or repeatibity. 
+Sample is biased  
+ -> This is difficult to say without going deep into the methods and data. I'd say that it's a little biased because more women ended up with postpartum (or without? it was skewed one way) than without. Smaller group sizes will provide less reliable statistical measurements/models. 
+Data have been manually edited  
+ -> Can't know from this dataset. Likely it has been curated but in this form, there is no metadata describing the transformation or origins of the data. 
+
+```{r}
+
+path = "./../data/PPD_hairCortisol_PlosOne_.sav"
+
+dataset= read_sav(path)
+#summary(dataset)
+
+count(dataset)
+
+ncol(dataset)
+nrow(dataset)
+
+#glimpse(dataset)
+
+write.csv(dataset, file = "./../data/data_span.csv")
+```
+
+```{python}
+import googletrans as gt 
+import pandas as pd
+import re
+
+data = pd.read_csv('./../data/data_span.csv',encoding = "ISO-8859-1")
+#print(data.head())
+#print(data.columns.values)
+
+#data.drop(["Unnamed: 0"], inplace=True)
+
+
+trans = gt.Translator()
+
+#print(trans.translate("hola mi amigo"))
+
+for old_col in data.columns.values:  
+  print(old_col)
+  #old_col2 = re.sub('[0-9:]','',old_col)
+  #old_col2 = re.sub('_', ' ', old_col)
+  #print(old_col2)
+  
+  new_col = trans.translate(old_col, src = 'spanish', dest='en').text
+  #print(new_col)
+  #print('-----------')
+  
+  data.rename(columns = {old_col:new_col}, inplace = True)
+  
+
+print(data.head())
+data.to_csv( "./../data/data_eng.csv" )
+
+```
+
+
+###-----------------------------------------
+
+
+```{r}
+finalProject <- read.spss("~/Desktop/R-bootcamp/Math630/data/PPD.sav", to.data.frame=TRUE)
+```
+#### 31. Data have been manually edited <br />
+
+I do not find any suspicious sign.
+
+#### 32, 33 Inflation skews the data or Natural/seasonal variation skews the data <br />
+
+Using "skim" function to get all histograms and figure out several skewness data.
+```{r}
+# Using skim, we can get histograms of all variables. 
+skim(finalProject)
+```
+
+Obvious skewness histograms: <br />
+ANSIEDADFOBICA1 
+ANSIEDADFOBICA3
+Cortisol1
+Cortisol2
+Cortisol2
+DEPRESIÓN2
+EPDS
+IDEACIÓNPARANOIDE3
+OBSESIONESYCOMPULSIONES3
+PSICOTICISMO1
+PSICOTICISMO3
+
+```{r}
+# Remove empty row
+finalProject <- finalProject[-c(45:73), ]
+
+ggplot(finalProject, aes(x = Cortisol1))+
+  geom_density()
+
+skewness(finalProject$Cortisol1)
+
+ggplot(finalProject, aes(x = Cortisol2))+
+  geom_density()
+
+skewness(finalProject$Cortisol2)
+
+ggplot(finalProject, aes(x = Cortisol3))+
+  geom_density()
+
+skewness(finalProject$Cortisol3)
+
+ggplot(finalProject, aes(x = ANSIEDADFOBICA1))+
+  geom_density()
+
+skewness(finalProject$ANSIEDADFOBICA1)
+
+ggplot(finalProject, aes(x = ANSIEDADFOBICA3))+
+  geom_density()
+
+skewness(finalProject$ANSIEDADFOBICA3)
+
+ggplot(finalProject, aes(x = DEPRESIÓN2))+
+  geom_density()
+
+skewness(finalProject$DEPRESIÓN2)
+
+ggplot(finalProject, aes(x = EPDS))+
+  geom_density()
+
+skewness(finalProject$EPDS)
+
+ggplot(finalProject, aes(x = IDEACIÓNPARANOIDE3))+
+  geom_density()
+
+skewness(finalProject$IDEACIÓNPARANOIDE3)
+
+ggplot(finalProject, aes(x = OBSESIONESYCOMPULSIONES3))+
+  geom_density()
+
+skewness(finalProject$OBSESIONESYCOMPULSIONES3)
+
+ggplot(finalProject, aes(x = PSICOTICISMO1))+
+  geom_density()
+
+skewness(finalProject$PSICOTICISMO1)
+
+ggplot(finalProject, aes(x = PSICOTICISMO3))+
+  geom_density()
+
+skewness(finalProject$PSICOTICISMO3)
+```
+<br />
+
+#### 34. Timeframe has been manipulated <br />
+No sign of this kind of manipulation
+
+#### 35. Frame of reference has been manipulated <br />
+No sign of this kind of manipulation
+
+#### 36. Author is untrustworthy <br />
+No information to make the judgement.
+
+#### 37. Collection process is opaque <br />
+Data collection process is clear.
+
+#### 38. Data assert unrealistic precision <br/>
+The R-squart of prediction model is reasonable.
+
+#### 39. There are inexplicable outliers <br/>
+No
+
+#### 40. An index masks underlying variation <br/>
+Not found
+
+#### 41. Results have been p-hacked <br/>
+I haven't find p-hacked situation.
+
+#### 42. Benford's Law fails
+
+If the data follows Benford's Law, the numbers should be close to: <br />
+Statistic	Value <br />
+Mean	0.5 <br />
+Variance	1/12 (0.08333…) <br />
+Ex. Kurtosis	-1.2 <br />
+Skewness	0 <br />
+
+Here are several variables fails to Benford's law
+
+```{r}
+
+#Test skewness variables with benford function
+benford(finalProject$ANSIEDADFOBICA1)
+
+benford(finalProject$ANSIEDADFOBICA3)
+
+benford(finalProject$IDEACI�.NPARANOIDE3)
+
+benford(finalProject$PSICOTICISMO1)
+
+```
+
+#### 43. Too good to be true <br />
+The result is reasonable.
+
+#### 44. Data are aggregated to the wrong categories or geographies <br />
+All variable names were stored as Spanish, we might need to translate to English.
+
+#### 45. Data are in scanned documents <br />
+No 
+
