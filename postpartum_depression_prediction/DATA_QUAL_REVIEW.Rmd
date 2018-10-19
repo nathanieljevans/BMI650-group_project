@@ -1,6 +1,6 @@
 ---
-title: "Nate-DataQualityReview"
-author: "Nathaniel Evans"
+title: "Data Quality Review"
+author: "Nathaniel Evans , Alfonso Poire ,Wei-Chun Lin"
 date: "October 16, 2018"
 output: html_document
 ---
@@ -12,43 +12,89 @@ library(haven)
 library(tidyr)
 library(dplyr)
 library(reticulate)
+
+library(skimr)
+library(foreign)
+# Attaching benford analysis tool
+library(benford.analysis)
+library(moments)
+library(ggplot2)
 ```
+
+## Alfonso 1-16
+
+Sample is biased		
+the sample is slightly biased by disgn because it only is on latin females in one area of a specific demographic 
+Data have been manually edited	
+n/a
+Inflation skews the data	
+n/a
+Natural/seasonal variation skews the data	this may be true but the hair quality could be a way around this issue because it lasts for long however this test does take place over the winter motths where SADS could be a factor further investigation into this aspect is required
+Timeframe has been manipulated			
+n/a 
+Frame of reference has been manipulated		
+this is true with especaly with respect to the Edinburgh Postnatal Depression Scale this has been highly manipulated 
+Author is untrustworthy				
+N/A
+Collection process is opaque			
+N/A
+Data assert unrealistic precision		
+N/A  
+There are inexplicable outliers			
+N/A   
+An index masks underlying variation	  
+N/A  
+Results have been p-hacked		
+N/A  
+Benford's Law fails			
+N/A   
+Too good to be true			
+N/A   
+Data are aggregated to the wrong categories or geographies	
+N/A	  
+Data are in scanned documents			
+n/A  
+
+
+
+
 
 
 ## Nates Items 16:32 ------------------------------------------
-Spreadsheet has 65536 rows  
- -> 73 observations 
-Spreadsheet has 255 columns  
- -> 71 Variables
-Spreadsheet has dates in 1900, 1904, 1969, or 1970  
- -> No date variable 
-Text has been converted to numbers 
- -> Not totally sure what that would look like, but no unexpected data types or unreasonable numbers per label
-Numbers have been stored as text  
- -> all variables are of type <dbl> even binaries as 0/1 
-Text is garbled  
- -> Garbled no, but it is in spanish which will present a problem. Attempted to write a python script to translate but google translate didn't know some words and being concatenated without spaces was an issue I think. 
-Line endings are garbled   
- -> No but the .sav file was problematic when reading into excel, I had to read into R, save as csv, then open in excel. 
-Data are in a PDF  
- -> Fortunately no, but see last question. 
-Data are too granular  
- -> Data is mostly questionaires, so naturally granular, but not too much we can do about that. 
-Data were entered by humans  
- -> This is true, but it was the only feasible way. Less problematic since given 1-5 scores on questionaires and then feature extraction from that to give mostly continuous value metrics. 
-Data are intermingled with formatting and annotations  
-Aggregations were computed on missing values  
- -> No nested data, so nothing like that, I have no idea the data pipeline from questionaire data to provided metrics and there could be a host of issues there. No way to know without talking to the PI. 
-Sample is not random  
- -> This is true, but the women selected for the study were selected to remove biased cortisol readings. So, they were chosen NOT at random but to provide the most normal population variation. 
-Margin-of-error is too large  
- -> Dealing with psychology so I'd say yes, margin of error here is huge. Not easily controlled for. 
-Margin-of-error is unknown  
- -> same as above. Margin of error on cortisol measurement is more knowable and worth looking into, the methods section didn't list the resolution or repeatibity. 
-Sample is biased  
- -> This is difficult to say without going deep into the methods and data. I'd say that it's a little biased because more women ended up with postpartum (or without? it was skewed one way) than without. Smaller group sizes will provide less reliable statistical measurements/models. 
-Data have been manually edited  
- -> Can't know from this dataset. Likely it has been curated but in this form, there is no metadata describing the transformation or origins of the data. 
+###Spreadsheet has 65536 rows    
+ -> 73 observations   
+###Spreadsheet has 255 columns    
+ -> 71 Variables  
+###Spreadsheet has dates in 1900, 1904, 1969, or 1970    
+ -> No date variable   
+###Text has been converted to numbers   
+ -> Not totally sure what that would look like, but no unexpected data types or unreasonable numbers per label  
+###Numbers have been stored as text    
+ -> all variables are of type <dbl> even booleans as 0/1   
+###Text is garbled    
+ -> Garbled no, but it is in spanish which will present a problem. Attempted to write a python script to translate but google translate didn't know some words and being concatenated without spaces was an issue I think.   
+###Line endings are garbled     
+ -> No but the .sav file was problematic when reading into excel, I had to read into R, save as csv, then open in excel.   
+###Data are in a PDF    
+ -> Fortunately no, but see last question.   
+###Data are too granular    
+ -> Data is mostly questionaires, so naturally granular, but not too much we can do about that.   
+###Data were entered by humans    
+ -> This is true, but it was the only feasible way. Less problematic since given 1-5 scores on questionaires and then   feature extraction from that to give mostly continuous value metrics. 
+###Data are intermingled with formatting and annotations   
+-> No, one empty row I believe, but otherwise, well formated.   
+###Aggregations were computed on missing values    
+ -> No nested data, so nothing like that, I have no idea the data pipeline from questionaire data to provided metrics and there could be a host of issues there. No way to know without talking to the PI.   
+###Sample is not random    
+ -> This is true, but the women selected for the study were selected to remove biased cortisol readings. So, they were chosen NOT at random but to provide the most normal population variation.   
+###Margin-of-error is too large    
+ -> Dealing with psychology so I'd say yes, margin of error here is huge. Not easily controlled for.   
+###Margin-of-error is unknown    
+ -> same as above. Margin of error on cortisol measurement is more knowable and worth looking into, the methods section didn't list the resolution or repeatibity.   
+###Sample is biased    
+ -> This is difficult to say without going deep into the methods and data. I'd say that it's a little biased because more women ended up with postpartum (or without? it was skewed one way) than without. Smaller group sizes will provide less reliable statistical measurements/models.   
+###Data have been manually edited    
+ -> Can't know from this dataset. Likely it has been curated but in this form, there is no metadata describing the transformation or origins of the data.   
 
 ```{r}
 
@@ -67,7 +113,8 @@ nrow(dataset)
 write.csv(dataset, file = "./../data/data_span.csv")
 ```
 
-```{python}
+####```{python}
+'''
 import googletrans as gt 
 import pandas as pd
 import re
@@ -78,15 +125,14 @@ data = pd.read_csv('./../data/data_span.csv',encoding = "ISO-8859-1")
 
 #data.drop(["Unnamed: 0"], inplace=True)
 
-
 trans = gt.Translator()
 
 #print(trans.translate("hola mi amigo"))
 
 for old_col in data.columns.values:  
-  print(old_col)
-  #old_col2 = re.sub('[0-9:]','',old_col)
-  #old_col2 = re.sub('_', ' ', old_col)
+  #print(old_col)
+  old_col2 = re.sub('[0-9:]','',old_col)
+  old_col2 = re.sub('_', ' ', old_col)
   #print(old_col2)
   
   new_col = trans.translate(old_col, src = 'spanish', dest='en').text
@@ -96,9 +142,9 @@ for old_col in data.columns.values:
   data.rename(columns = {old_col:new_col}, inplace = True)
   
 
-print(data.head())
+#print(data.head())
 data.to_csv( "./../data/data_eng.csv" )
-
+'''
 ```
 
 
@@ -106,7 +152,8 @@ data.to_csv( "./../data/data_eng.csv" )
 
 
 ```{r}
-finalProject <- read.spss("~/Desktop/R-bootcamp/Math630/data/PPD.sav", to.data.frame=TRUE)
+#finalProject <- read.spss("./../data/PPD.sav", to.data.frame=TRUE)
+finalProject <- dataset
 ```
 #### 31. Data have been manually edited <br />
 
@@ -161,21 +208,21 @@ ggplot(finalProject, aes(x = ANSIEDADFOBICA3))+
   geom_density()
 
 skewness(finalProject$ANSIEDADFOBICA3)
-
-ggplot(finalProject, aes(x = DEPRESIÃ“N2))+
+```
+ggplot(finalProject, aes(x = DEPRESIA.N2))+
   geom_density()
 
-skewness(finalProject$DEPRESIÃ“N2)
+skewness(finalProject$DEPRESIA.N2)
 
 ggplot(finalProject, aes(x = EPDS))+
   geom_density()
 
 skewness(finalProject$EPDS)
 
-ggplot(finalProject, aes(x = IDEACIÃ“NPARANOIDE3))+
+ggplot(finalProject, aes(x = IDEACIA.NPARANOIDE3))+
   geom_density()
 
-skewness(finalProject$IDEACIÃ“NPARANOIDE3)
+skewness(finalProject$IDEACIA.NPARANOIDE3)
 
 ggplot(finalProject, aes(x = OBSESIONESYCOMPULSIONES3))+
   geom_density()
@@ -223,20 +270,20 @@ I haven't find p-hacked situation.
 If the data follows Benford's Law, the numbers should be close to: <br />
 Statistic	Value <br />
 Mean	0.5 <br />
-Variance	1/12 (0.08333â€¦) <br />
+Variance	1/12 (0.08333â.¦) <br />
 Ex. Kurtosis	-1.2 <br />
 Skewness	0 <br />
 
 Here are several variables fails to Benford's law
 
-```{r}
+#```{r}
 
 #Test skewness variables with benford function
 benford(finalProject$ANSIEDADFOBICA1)
 
 benford(finalProject$ANSIEDADFOBICA3)
 
-benford(finalProject$IDEACIÃ.NPARANOIDE3)
+benford(finalProject$IDEACIA.NPARANOIDE3)
 
 benford(finalProject$PSICOTICISMO1)
 
