@@ -1,3 +1,6 @@
+# THIS IS NOW OBSOLETE, ALL DATA HAS BEEN MIGRATED TO: https://github.com/OHSU-Math630
+
+
 # BMI650-group_project
 
 Project Instructions can be found [**here**] (https://ohsu-math630-fall-2018.netlify.com/final_project.html#p1:_data_quality_review) 
